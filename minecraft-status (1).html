@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astero SMP – Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:   #5d9e3f;
+      --green-l: #7ec850;
+      --dirt:    #7a5230;
+      --card:    #1a1a2e;
+      --card2:   #16213e;
+      --border:  rgba(93,158,63,0.25);
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: #0c0c18;
+      font-family: 'Inter', sans-serif;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    .pixel { font-family: 'Press Start 2P', monospace; }
+
+    /* Animated starfield */
+    #stars { position:fixed; inset:0; pointer-events:none; z-index:0; }
+    .star { position:absolute; border-radius:50%; background:#fff; animation: twinkle 3s ease-in-out infinite alternate; }
+    @keyframes twinkle { from{opacity:.05} to{opacity:.7} }
+
+    /* Card style */
+    .mc-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5), 0 0 40px rgba(93,158,63,0.04);
+    }
+    .grass-top { height:3px; background:linear-gradient(90deg,var(--green),var(--green-l),var(--green)); border-radius:12px 12px 0 0; }
+
+    /* Status dot */
+    @keyframes pulse-g { 0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.5)} 50%{box-shadow:0 0 0 5px rgba(74,222,128,0)} }
+    .online-dot { animation: pulse-g 1.8s ease-in-out infinite; }
+
+    /* Progress bars */
+    @keyframes bar-in { from{width:0} to{width:var(--w)} }
+    .bar-fill { animation: bar-in 1s cubic-bezier(.22,1,.36,1) .3s both; }
+
+    /* Fade-up */
+    @keyframes fade-up { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .fu  { animation: fade-up .5s ease both; }
+    .fu1 { animation-delay:.05s }
+    .fu2 { animation-delay:.15s }
+    .fu3 { animation-delay:.25s }
+    .fu4 { animation-delay:.35s }
+
+    /* Player row hover */
+    .player-row { transition: background .15s; }
+    .player-row:hover { background: rgba(93,158,63,0.08); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius:3px; }
+
+    /* Tooltip */
+    [data-tip] { position:relative; cursor:default; }
+    [data-tip]:hover::after {
+      content: attr(data-tip);
+      position:absolute; bottom:120%; left:50%; transform:translateX(-50%);
+      background:#0f0f1a; border:1px solid var(--border); color:#a0aec0;
+      font-size:11px; padding:4px 8px; border-radius:6px; white-space:nowrap;
+      z-index:50;
+    }
+
+    /* Health bar colours */
+    .hb-green  { background:linear-gradient(90deg,#22c55e,#4ade80) }
+    .hb-yellow { background:linear-gradient(90deg,#ca8a04,#facc15) }
+    .hb-red    { background:linear-gradient(90deg,#dc2626,#f87171) }
+
+    /* Responsive grid */
+    .stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+    @media(min-width:640px) { .stat-grid { grid-template-columns:repeat(4,1fr); } }
+  </style>
+</head>
+<body>
+<div id="stars"></div>
+
+<div class="relative z-10 max-w-3xl mx-auto px-4 py-8 space-y-5">
+
+  <!-- ── Header ── -->
+  <div class="fu fu1 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <!-- Creeper SVG icon -->
+      <svg viewBox="0 0 16 16" class="w-9 h-9 flex-shrink-0" style="image-rendering:pixelated">
+        <rect width="16" height="16" fill="#5d9e3f"/>
+        <rect x="3" y="4" width="3" height="3" fill="#1a1a1a"/>
+        <rect x="10" y="4" width="3" height="3" fill="#1a1a1a"/>
+        <rect x="5" y="8" width="2" height="2" fill="#1a1a1a"/>
+        <rect x="9" y="8" width="2" height="2" fill="#1a1a1a"/>
+        <rect x="5" y="10" width="6" height="1" fill="#1a1a1a"/>
+        <rect x="4" y="11" width="2" height="2" fill="#1a1a1a"/>
+        <rect x="10" y="11" width="2" height="2" fill="#1a1a1a"/>
+      </svg>
+      <div>
+        <p class="text-xs text-green-400/50 uppercase tracking-widest">Minecraft Server</p>
+        <h1 id="srv-name" class="pixel text-green-300 text-sm leading-tight mt-0.5">Loading…</h1>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="status-badge" class="flex items-center gap-2 text-sm font-semibold text-gray-500">
+        <span class="w-2.5 h-2.5 rounded-full bg-gray-600"></span> Memeriksa…
+      </span>
+      <button onclick="loadAll()" class="text-xs px-3 py-1.5 rounded-lg border border-green-700/50 text-green-400 hover:bg-green-900/30 transition">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- ── Server Stats ── -->
+  <div class="mc-card fu fu2 overflow-hidden">
+    <div class="grass-top"></div>
+    <div class="p-5 space-y-4">
+
+      <!-- MOTD -->
+      <p id="srv-motd" class="text-sm text-gray-400 italic border-l-2 border-green-700 pl-3">—</p>
+
+      <!-- Stat grid: version, bukkit, cpus, uptime -->
+      <div class="stat-grid">
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Versi</p>
+          <p id="srv-version" class="text-sm text-gray-200 font-medium truncate">—</p>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Bukkit</p>
+          <p id="srv-bukkit" class="text-sm text-gray-200 font-medium truncate">—</p>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">CPU Threads</p>
+          <p id="srv-cpus" class="text-sm text-gray-200 font-medium">—</p>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Uptime</p>
+          <p id="srv-uptime" class="text-sm text-gray-200 font-medium">—</p>
+        </div>
+      </div>
+
+      <!-- Memory bar -->
+      <div>
+        <div class="flex justify-between text-xs mb-1.5">
+          <span class="text-gray-400 uppercase tracking-wider">Memory Usage</span>
+          <span id="mem-label" class="font-semibold text-gray-300">— / — MB</span>
+        </div>
+        <div class="h-3 rounded-full overflow-hidden bg-black/30">
+          <div id="mem-bar" class="bar-fill h-full rounded-full hb-green" style="--w:0%;width:0%"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Players ── -->
+  <div class="mc-card fu fu3 overflow-hidden">
+    <div class="grass-top"></div>
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="pixel text-green-300 text-xs">Pemain Online</h2>
+        <span id="player-count-badge" class="text-xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-700/40">0 / 0</span>
+      </div>
+
+      <!-- Player fill bar -->
+      <div class="h-2 rounded-full overflow-hidden bg-black/30 mb-5">
+        <div id="player-bar" class="bar-fill h-full rounded-full" style="--w:0%;width:0%;background:linear-gradient(90deg,#5d9e3f,#7ec850)"></div>
+      </div>
+
+      <!-- Player list -->
+      <div id="player-list" class="space-y-0 divide-y divide-white/5">
+        <p class="text-sm text-gray-500 text-center py-6">Memuat daftar pemain…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <p id="footer-ts" class="fu fu4 text-xs text-gray-600 text-center">—</p>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const BASE = 'http://game-gnl-sgp7.raznar.net:4567/v1';
+const KEY  = 'LgRTva8UtYyezMPRSiW14vLw';
+const HEADERS = { 'key': KEY, 'Content-Type': 'application/json' };
+
+// ── Starfield ───────────────────────────────────────────────────────────────
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 90; i++) {
+  const s = document.createElement('div');
+  const sz = Math.random() < .2 ? 2 : 1;
+  s.className = 'star';
+  s.style.cssText = `width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;opacity:${.1+Math.random()*.6};animation-delay:${Math.random()*5}s;animation-duration:${2+Math.random()*4}s`;
+  starsEl.appendChild(s);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(n) { return n != null ? n : '—'; }
+function mb(bytes) { return bytes ? (bytes/1024/1024).toFixed(0) + ' MB' : '—'; }
+function fmtUptime(sec) {
+  if (!sec && sec !== 0) return '—';
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  return h > 0 ? `${h}j ${m}m` : `${m}m ${s}d`;
+}
+function stripColor(s) { return s ? s.replace(/§./g,'') : ''; }
+function expToLevel(exp, lvl) {
+  // rough level from exp progress
+  return lvl != null ? Math.floor(lvl) : '?';
+}
+
+function reBar(el, pct, thresholds) {
+  el.style.setProperty('--w', pct+'%');
+  el.style.width = '0%'; // reset
+  void el.offsetWidth;   // reflow
+  el.style.width = pct+'%'; // trigger
+  el.classList.remove('hb-green','hb-yellow','hb-red');
+  if (pct >= thresholds[1]) el.classList.add('hb-red');
+  else if (pct >= thresholds[0]) el.classList.add('hb-yellow');
+  else el.classList.add('hb-green');
+}
+
+// ── Fetch server info ────────────────────────────────────────────────────────
+async function loadServer() {
+  const r = await fetch(`${BASE}/server`, { headers: HEADERS });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const d = await r.json();
+
+  document.getElementById('srv-name').textContent    = stripColor(d.name) || 'Astero SMP';
+  document.getElementById('srv-motd').textContent    = stripColor(d.motd) || '—';
+  document.getElementById('srv-version').textContent = d.version || '—';
+  document.getElementById('srv-bukkit').textContent  = d.bukkitVersion || '—';
+
+  if (d.health) {
+    const h = d.health;
+    document.getElementById('srv-cpus').textContent   = h.cpus != null ? h.cpus + ' core' : '—';
+    document.getElementById('srv-uptime').textContent = fmtUptime(h.uptime);
+
+    const used   = (h.totalMemory - h.freeMemory);
+    const total  = h.maxMemory || h.totalMemory;
+    const pct    = total > 0 ? Math.round((used/total)*100) : 0;
+    document.getElementById('mem-label').textContent = `${mb(used)} / ${mb(total)} (${pct}%)`;
+    reBar(document.getElementById('mem-bar'), pct, [60, 85]);
+  }
+
+  // Status
+  const badge = document.getElementById('status-badge');
+  badge.innerHTML = `<span class="online-dot w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0"></span> <span class="text-green-400">Online</span>`;
+
+  return d;
+}
+
+// ── Fetch players ─────────────────────────────────────────────────────────────
+async function loadPlayers(maxPlayers) {
+  const r = await fetch(`${BASE}/players`, { headers: HEADERS });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const players = await r.json();
+
+  const count = players.length;
+  const max   = maxPlayers || 20;
+  const pct   = Math.round((count/max)*100);
+
+  document.getElementById('player-count-badge').textContent = `${count} / ${max}`;
+  const pb = document.getElementById('player-bar');
+  pb.style.setProperty('--w', pct+'%');
+  pb.style.width = '0%'; void pb.offsetWidth; pb.style.width = pct+'%';
+
+  const list = document.getElementById('player-list');
+  if (!players.length) {
+    list.innerHTML = `<p class="text-sm text-gray-500 text-center py-6">Tidak ada pemain online saat ini</p>`;
+    return;
+  }
+
+  list.innerHTML = players.map(p => {
+    const health    = p.health ?? p.healthScale;
+    const maxHealth = p.maxHealth ?? 20;
+    const hpPct     = health != null ? Math.round((health/maxHealth)*100) : null;
+    const hpColor   = hpPct > 60 ? '#22c55e' : hpPct > 30 ? '#facc15' : '#f87171';
+
+    const expPct = p.exp != null ? Math.round(p.exp * 100) : null;
+    const level  = p.level ?? '?';
+
+    const hunger = p.foodLevel ?? p.hunger;
+    const gamemode = p.gameMode ?? p.gamemode ?? '—';
+
+    // World / coordinates
+    const world = p.world ?? (p.location && p.location.world) ?? null;
+    const loc   = p.location;
+    const coords = loc
+      ? `${Math.round(loc.x)}, ${Math.round(loc.y)}, ${Math.round(loc.z)}`
+      : null;
+
+    const badges = [];
+    if (p.op)          badges.push('<span class="px-1.5 py-0.5 text-xs rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700/40">OP</span>');
+    if (p.banned)      badges.push('<span class="px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-400 border border-red-700/40">Banned</span>');
+    if (p.whitelisted) badges.push('<span class="px-1.5 py-0.5 text-xs rounded bg-blue-900/50 text-blue-400 border border-blue-700/40">WL</span>');
+
+    const avatar = `https://mc-heads.net/avatar/${p.uuid}/32`;
+
+    return `
+    <div class="player-row flex items-start gap-3 py-3 px-2 rounded-lg">
+      <!-- Head -->
+      <img src="${avatar}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 fill=%22%235d9e3f%22/></svg>'"
+           class="w-8 h-8 rounded flex-shrink-0 mt-0.5" style="image-rendering:pixelated" />
+
+      <!-- Info -->
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-semibold text-gray-100 text-sm">${p.displayName || p.name || '?'}</span>
+          ${badges.join('')}
+        </div>
+
+        <!-- HP bar -->
+        ${hpPct != null ? `
+        <div class="flex items-center gap-2 mt-1.5">
+          <span class="text-xs text-gray-500 w-4">❤</span>
+          <div class="flex-1 h-1.5 rounded-full bg-black/40 overflow-hidden">
+            <div class="h-full rounded-full" style="width:${hpPct}%;background:${hpColor}"></div>
+          </div>
+          <span class="text-xs text-gray-500 w-8 text-right">${Math.round(health??0)}/${maxHealth}</span>
+        </div>` : ''}
+
+        <!-- EXP bar -->
+        ${expPct != null ? `
+        <div class="flex items-center gap-2 mt-1">
+          <span class="text-xs text-gray-500 w-4">✦</span>
+          <div class="flex-1 h-1.5 rounded-full bg-black/40 overflow-hidden">
+            <div class="h-full rounded-full" style="width:${expPct}%;background:linear-gradient(90deg,#84cc16,#a3e635)"></div>
+          </div>
+          <span class="text-xs text-gray-500 w-8 text-right">Lv${level}</span>
+        </div>` : ''}
+
+        <!-- Meta row -->
+        <div class="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-500">
+          ${hunger != null ? `<span data-tip="Hunger">🍖 ${hunger}/20</span>` : ''}
+          ${gamemode !== '—' ? `<span data-tip="Game Mode">🎮 ${gamemode}</span>` : ''}
+          ${world ? `<span data-tip="World">🌍 ${world}</span>` : ''}
+          ${coords ? `<span data-tip="Koordinat">📍 ${coords}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Main load ────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const ts = document.getElementById('footer-ts');
+  ts.textContent = 'Memperbarui…';
+  try {
+    const srv = await loadServer();
+    await loadPlayers(srv.maxPlayers ?? srv.maxplayers ?? 20);
+    ts.textContent = `Terakhir diperbarui: ${new Date().toLocaleTimeString('id-ID')}`;
+  } catch(e) {
+    console.error(e);
+    document.getElementById('status-badge').innerHTML =
+      `<span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> <span class="text-red-400">Offline / Error</span>`;
+    ts.textContent = `Gagal memuat data — ${e.message}`;
+  }
+}
+
+loadAll();
+setInterval(loadAll, 30_000);
+</script>
+</body>
+</html>
