@@ -185,8 +185,6 @@
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
 const BASE = 'http://sainssmp.raznar.net:10035/v1';
-const KEY  = 'LgRTva8UtYyezMPRSiW14vLw';
-const HEADERS = { 'Key': KEY };
 
 // ── Starfield ───────────────────────────────────────────────────────────────
 const starsEl = document.getElementById('stars');
@@ -225,7 +223,7 @@ function reBar(el, pct, thresholds) {
 
 // ── Fetch server info ────────────────────────────────────────────────────────
 async function loadServer() {
-  const r = await fetch(`${BASE}/server`, { headers: HEADERS });
+  const r = await fetch(`${BASE}/server`);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const d = await r.json();
 
@@ -255,7 +253,7 @@ async function loadServer() {
 
 // ── Fetch players ─────────────────────────────────────────────────────────────
 async function loadPlayers(maxPlayers) {
-  const r = await fetch(`${BASE}/players`, { headers: HEADERS });
+  const r = await fetch(`${BASE}/players`);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const players = await r.json();
 
