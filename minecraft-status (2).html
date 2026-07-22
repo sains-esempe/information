@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sains SMP – Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --green:#5d9e3f; --green-l:#7ec850; --card:#1a1a2e; --border:rgba(93,158,63,0.25); }
+    * { box-sizing:border-box; }
+    body { background:#0c0c18; font-family:'Inter',sans-serif; color:#e2e8f0; min-height:100vh; }
+    .pixel { font-family:'Press Start 2P',monospace; }
+    #stars { position:fixed; inset:0; pointer-events:none; z-index:0; }
+    .star { position:absolute; border-radius:50%; background:#fff; animation:twinkle 3s ease-in-out infinite alternate; }
+    @keyframes twinkle { from{opacity:.05} to{opacity:.7} }
+    .mc-card { background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,.5); }
+    .grass-top { height:3px; background:linear-gradient(90deg,var(--green),var(--green-l),var(--green)); border-radius:12px 12px 0 0; }
+    @keyframes pulse-g { 0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.5)} 50%{box-shadow:0 0 0 5px rgba(74,222,128,0)} }
+    .online-dot { animation:pulse-g 1.8s ease-in-out infinite; }
+    @keyframes fade-up { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .fu  { animation:fade-up .5s ease both; }
+    .fu1 { animation-delay:.05s } .fu2 { animation-delay:.15s } .fu3 { animation-delay:.25s } .fu4 { animation-delay:.35s }
+    .player-row { transition:background .15s; border-radius:8px; }
+    .player-row:hover { background:rgba(93,158,63,.08); }
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    [data-tip] { position:relative; cursor:default; }
+    [data-tip]:hover::after { content:attr(data-tip); position:absolute; bottom:120%; left:50%; transform:translateX(-50%); background:#0f0f1a; border:1px solid var(--border); color:#a0aec0; font-size:11px; padding:4px 8px; border-radius:6px; white-space:nowrap; z-index:50; }
+    .hb-green  { background:linear-gradient(90deg,#22c55e,#4ade80) }
+    .hb-yellow { background:linear-gradient(90deg,#ca8a04,#facc15) }
+    .hb-red    { background:linear-gradient(90deg,#dc2626,#f87171) }
+    .stat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+    @media(min-width:640px) { .stat-grid { grid-template-columns:repeat(4,1fr); } }
+    #debug-box { font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-all; }
+  </style>
+</head>
+<body>
+<div id="stars"></div>
+
+<div class="relative z-10 max-w-3xl mx-auto px-4 py-8 space-y-5">
+
+  <!-- Header -->
+  <div class="fu fu1 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <svg viewBox="0 0 16 16" class="w-9 h-9 flex-shrink-0" style="image-rendering:pixelated">
+        <rect width="16" height="16" fill="#5d9e3f"/>
+        <rect x="3" y="4" width="3" height="3" fill="#1a1a1a"/>
+        <rect x="10" y="4" width="3" height="3" fill="#1a1a1a"/>
+        <rect x="5" y="8" width="2" height="2" fill="#1a1a1a"/>
+        <rect x="9" y="8" width="2" height="2" fill="#1a1a1a"/>
+        <rect x="5" y="10" width="6" height="1" fill="#1a1a1a"/>
+        <rect x="4" y="11" width="2" height="2" fill="#1a1a1a"/>
+        <rect x="10" y="11" width="2" height="2" fill="#1a1a1a"/>
+      </svg>
+      <div>
+        <p class="text-xs text-green-400/50 uppercase tracking-widest">Minecraft Server</p>
+        <h1 id="srv-name" class="pixel text-green-300 text-sm leading-tight mt-0.5">Sains SMP</h1>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="status-badge" class="flex items-center gap-2 text-sm font-semibold text-gray-500">
+        <span class="w-2.5 h-2.5 rounded-full bg-gray-600"></span> Memeriksa…
+      </span>
+      <button onclick="loadAll()" class="text-xs px-3 py-1.5 rounded-lg border border-green-700/50 text-green-400 hover:bg-green-900/30 transition">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Error banner -->
+  <div id="error-banner" class="hidden fu mc-card border-red-800/50 p-4">
+    <div class="flex items-start gap-3">
+      <span class="text-red-400 text-lg flex-shrink-0">⚠</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-red-400 font-semibold text-sm mb-1">Gagal memuat data server</p>
+        <p id="error-msg" class="text-gray-400 text-xs mb-3">—</p>
+        <div id="cors-hint" class="hidden bg-black/40 rounded-lg p-3 text-xs text-gray-400 space-y-1.5">
+          <p class="text-yellow-400 font-semibold">💡 Kemungkinan masalah CORS</p>
+          <p>Browser memblokir request karena <code class="bg-white/10 px-1 rounded">Access-Control-Allow-Origin</code> tidak dikonfigurasi.</p>
+          <p>Tambahkan ke <code class="bg-white/10 px-1 rounded">plugins/ServerTap/config.yml</code>:</p>
+          <pre class="bg-black/50 rounded p-2 text-green-300 mt-1">corsOrigins:
+  - "*"</pre>
+          <p class="mt-1">Lalu jalankan <code class="bg-white/10 px-1 rounded">/servertap reload</code> di server.</p>
+        </div>
+        <button onclick="toggleDebug()" class="mt-2 text-xs text-gray-500 hover:text-gray-300 underline">Lihat detail error</button>
+        <div id="debug-box" class="hidden mt-2 bg-black/50 rounded p-3 text-gray-400 max-h-40 overflow-y-auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Stats -->
+  <div id="srv-card" class="mc-card fu fu2 overflow-hidden">
+    <div class="grass-top"></div>
+    <div class="p-5 space-y-4">
+      <p id="srv-motd" class="text-sm text-gray-400 italic border-l-2 border-green-700 pl-3">—</p>
+      <div class="stat-grid">
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Versi</p>
+          <p id="srv-version" class="text-sm text-gray-200 font-medium truncate">—</p>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Bukkit</p>
+          <p id="srv-bukkit" class="text-sm text-gray-200 font-medium truncate">—</p>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">CPU Threads</p>
+          <p id="srv-cpus" class="text-sm text-gray-200 font-medium">—</p>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Uptime</p>
+          <p id="srv-uptime" class="text-sm text-gray-200 font-medium">—</p>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between text-xs mb-1.5">
+          <span class="text-gray-400 uppercase tracking-wider">Memory Usage</span>
+          <span id="mem-label" class="font-semibold text-gray-300">— / — MB</span>
+        </div>
+        <div class="h-3 rounded-full overflow-hidden bg-black/30">
+          <div id="mem-bar" class="h-full rounded-full hb-green transition-all duration-1000" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Players -->
+  <div class="mc-card fu fu3 overflow-hidden">
+    <div class="grass-top"></div>
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="pixel text-green-300 text-xs">Pemain Online</h2>
+        <span id="player-count-badge" class="text-xs px-2 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-700/40">— / —</span>
+      </div>
+      <div class="h-2 rounded-full overflow-hidden bg-black/30 mb-5">
+        <div id="player-bar" class="h-full rounded-full transition-all duration-1000" style="width:0%;background:linear-gradient(90deg,#5d9e3f,#7ec850)"></div>
+      </div>
+      <div id="player-list" class="space-y-0 divide-y divide-white/5">
+        <p class="text-sm text-gray-500 text-center py-6">Memuat daftar pemain…</p>
+      </div>
+    </div>
+  </div>
+
+  <p id="footer-ts" class="fu fu4 text-xs text-gray-600 text-center">—</p>
+</div>
+
+<script>
+// ── Config ───────────────────────────────────────────────────────────────────
+const BASE = 'http://sainssmp.raznar.net:10035/v1';
+// Key auth dinonaktifkan — kosongkan string jika tidak pakai key
+const API_KEY = '';
+
+function getHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (API_KEY) h['key'] = API_KEY;
+  return h;
+}
+
+// ── Starfield ────────────────────────────────────────────────────────────────
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 90; i++) {
+  const s = document.createElement('div');
+  const sz = Math.random() < .2 ? 2 : 1;
+  s.className = 'star';
+  s.style.cssText = `width:${sz}px;height:${sz}px;top:${Math.random()*100}%;left:${Math.random()*100}%;opacity:${.1+Math.random()*.6};animation-delay:${Math.random()*5}s;animation-duration:${2+Math.random()*4}s`;
+  starsEl.appendChild(s);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function mb(b) { return b ? (b/1024/1024).toFixed(0)+' MB' : '—'; }
+function stripColor(s) { return s ? s.replace(/§./g,'') : ''; }
+function fmtUptime(sec) {
+  if (sec == null) return '—';
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s2 = sec%60;
+  return h > 0 ? `${h}j ${m}m` : `${m}m ${s2}d`;
+}
+function setBar(el, pct) {
+  setTimeout(() => { el.style.width = Math.min(pct,100)+'%'; }, 50);
+  el.classList.remove('hb-green','hb-yellow','hb-red');
+  if (pct >= 85) el.classList.add('hb-red');
+  else if (pct >= 60) el.classList.add('hb-yellow');
+  else el.classList.add('hb-green');
+}
+
+// ── Debug / Error UI ──────────────────────────────────────────────────────────
+let debugLog = [];
+function log(msg) { debugLog.push(`[${new Date().toLocaleTimeString()}] ${msg}`); }
+
+function showError(msg, isCors = false) {
+  document.getElementById('error-banner').classList.remove('hidden');
+  document.getElementById('error-msg').textContent = msg;
+  if (isCors) document.getElementById('cors-hint').classList.remove('hidden');
+  document.getElementById('status-badge').innerHTML =
+    `<span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> <span class="text-red-400">Error</span>`;
+}
+function clearError() {
+  document.getElementById('error-banner').classList.add('hidden');
+  document.getElementById('cors-hint').classList.add('hidden');
+}
+function toggleDebug() {
+  const box = document.getElementById('debug-box');
+  box.classList.toggle('hidden');
+  box.textContent = debugLog.join('\n') || '(belum ada log)';
+}
+
+// ── Fetch dengan timeout ───────────────────────────────────────────────────────
+async function apiFetch(path) {
+  const url = BASE + path;
+  log(`Fetching: ${url}`);
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(url, { headers: getHeaders(), signal: ctrl.signal });
+    clearTimeout(tid);
+    log(`Response ${path}: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const data = await res.json();
+    log(`Data ${path}: OK (${JSON.stringify(data).length} chars)`);
+    return data;
+  } catch(e) {
+    clearTimeout(tid);
+    const isCors = e instanceof TypeError && e.message.toLowerCase().includes('fetch');
+    const isAbort = e.name === 'AbortError';
+    log(`Error ${path}: ${e.name} – ${e.message}`);
+    throw { message: e.message, isCors, isAbort, original: e };
+  }
+}
+
+// ── Load server info ───────────────────────────────────────────────────────────
+async function loadServer() {
+  const d = await apiFetch('/server');
+  document.getElementById('srv-name').textContent    = stripColor(d.name) || 'Sains SMP';
+  document.getElementById('srv-motd').textContent    = stripColor(d.motd) || '—';
+  document.getElementById('srv-version').textContent = d.version || '—';
+  document.getElementById('srv-bukkit').textContent  = d.bukkitVersion || '—';
+  if (d.health) {
+    const h = d.health;
+    document.getElementById('srv-cpus').textContent   = h.cpus != null ? h.cpus + ' core' : '—';
+    document.getElementById('srv-uptime').textContent = fmtUptime(h.uptime);
+    const used  = (h.totalMemory||0) - (h.freeMemory||0);
+    const total = h.maxMemory || h.totalMemory || 1;
+    const pct   = Math.round((used/total)*100);
+    document.getElementById('mem-label').textContent = `${mb(used)} / ${mb(total)} (${pct}%)`;
+    setBar(document.getElementById('mem-bar'), pct);
+  }
+  document.getElementById('status-badge').innerHTML =
+    `<span class="online-dot w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0"></span> <span class="text-green-400">Online</span>`;
+  return d;
+}
+
+// ── Load players ───────────────────────────────────────────────────────────────
+async function loadPlayers(maxPlayers) {
+  const players = await apiFetch('/players');
+  const count = players.length;
+  const max   = maxPlayers || 20;
+  const pct   = Math.round((count/max)*100);
+  document.getElementById('player-count-badge').textContent = `${count} / ${max}`;
+  setBar(document.getElementById('player-bar'), pct);
+  document.getElementById('player-bar').classList.remove('hb-green','hb-yellow','hb-red');
+
+  const list = document.getElementById('player-list');
+  if (!players.length) {
+    list.innerHTML = `<p class="text-sm text-gray-500 text-center py-6">Tidak ada pemain online saat ini</p>`;
+    return;
+  }
+
+  list.innerHTML = players.map(p => {
+    const health    = p.health ?? p.healthScale ?? null;
+    const maxHealth = p.maxHealth ?? 20;
+    const hpPct     = health != null ? Math.round((health/maxHealth)*100) : null;
+    const hpColor   = hpPct > 60 ? '#22c55e' : hpPct > 30 ? '#facc15' : '#f87171';
+    const expPct    = p.exp != null ? Math.round(p.exp*100) : null;
+    const level     = p.level ?? '?';
+    const hunger    = p.foodLevel ?? p.hunger ?? null;
+    const gamemode  = p.gameMode ?? p.gamemode ?? null;
+    const world     = p.world ?? (p.location?.world) ?? null;
+    const loc       = p.location;
+    const coords    = loc ? `${Math.round(loc.x)}, ${Math.round(loc.y)}, ${Math.round(loc.z)}` : null;
+    const avatar    = `https://mc-heads.net/avatar/${p.uuid}/32`;
+    const badges    = [];
+    if (p.op)          badges.push('<span class="px-1.5 py-0.5 text-xs rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700/40">OP</span>');
+    if (p.banned)      badges.push('<span class="px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-400 border border-red-700/40">Banned</span>');
+    if (p.whitelisted) badges.push('<span class="px-1.5 py-0.5 text-xs rounded bg-blue-900/50 text-blue-400 border border-blue-700/40">WL</span>');
+
+    return `
+    <div class="player-row flex items-start gap-3 py-3 px-2">
+      <img src="${avatar}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 fill=%22%235d9e3f%22/></svg>'"
+           class="w-8 h-8 rounded flex-shrink-0 mt-0.5" style="image-rendering:pixelated"/>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-semibold text-gray-100 text-sm">${p.displayName || p.name || '?'}</span>
+          ${badges.join('')}
+        </div>
+        ${hpPct != null ? `
+        <div class="flex items-center gap-2 mt-1.5">
+          <span class="text-xs text-gray-500 w-4">❤</span>
+          <div class="flex-1 h-1.5 rounded-full bg-black/40 overflow-hidden">
+            <div class="h-full rounded-full" style="width:${hpPct}%;background:${hpColor}"></div>
+          </div>
+          <span class="text-xs text-gray-500 w-14 text-right">${Math.round(health)}/${maxHealth}</span>
+        </div>` : ''}
+        ${expPct != null ? `
+        <div class="flex items-center gap-2 mt-1">
+          <span class="text-xs text-gray-500 w-4">✦</span>
+          <div class="flex-1 h-1.5 rounded-full bg-black/40 overflow-hidden">
+            <div class="h-full rounded-full" style="width:${expPct}%;background:linear-gradient(90deg,#84cc16,#a3e635)"></div>
+          </div>
+          <span class="text-xs text-gray-500 w-14 text-right">Lv ${level}</span>
+        </div>` : ''}
+        <div class="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-xs text-gray-500">
+          ${hunger != null ? `<span data-tip="Hunger">🍖 ${hunger}/20</span>` : ''}
+          ${gamemode ? `<span data-tip="Game Mode">🎮 ${gamemode}</span>` : ''}
+          ${world ? `<span data-tip="World">🌍 ${world}</span>` : ''}
+          ${coords ? `<span data-tip="Koordinat">📍 ${coords}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  document.getElementById('footer-ts').textContent = 'Memperbarui…';
+  clearError();
+  try {
+    const srv = await loadServer();
+    await loadPlayers(srv.maxPlayers ?? srv.maxplayers ?? 20);
+    document.getElementById('footer-ts').textContent =
+      `Terakhir diperbarui: ${new Date().toLocaleTimeString('id-ID')}`;
+  } catch(e) {
+    const msg = e.isAbort
+      ? 'Koneksi timeout (10 detik). Server tidak merespons.'
+      : e.isCors
+        ? `Diblokir CORS. Pastikan corsOrigins diset ke "*" di config ServerTap.`
+        : (e.message || 'Error tidak diketahui');
+    showError(msg, e.isCors || (!e.isAbort && !e.message?.includes('HTTP')));
+    document.getElementById('player-list').innerHTML =
+      `<p class="text-sm text-gray-500 text-center py-6">Gagal memuat data pemain</p>`;
+    document.getElementById('footer-ts').textContent =
+      `Gagal diperbarui: ${new Date().toLocaleTimeString('id-ID')}`;
+  }
+}
+
+loadAll();
+setInterval(loadAll, 30_000);
+</script>
+</body>
+</html>
